@@ -22,3 +22,15 @@ class CustomObtainPairSerializer(TokenObtainPairSerializer):  # JWT 토큰을 �
         token['email'] = user.email  # 생성된 토큰에 사용자 이메일을 추가
         token['is_admin'] = user.is_admin  # 사용자 객체의 `is_admin` 속성을 토큰에 포함. (관리자 여부를 판단하는 용도)
         return token  # 수정된 토큰을 반환
+    
+# 프로필 
+class UserProfileSerializers(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = '__all__'
+        
+# 프로필 수정
+class UserProfileUpdateSerializers(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('username', 'phone', 'birth')
