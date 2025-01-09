@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'user',
+    'channels',
 ]
 
 SITE_ID = 1
@@ -46,8 +47,8 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=100),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': True,  # Refresh Token을 블랙리스트에 추가
+    'ROTATE_REFRESH_TOKENS': False,
     'UPDATE_LAST_LOGIN': False,
 
     'ALGORITHM': 'HS256',
@@ -103,6 +104,18 @@ TEMPLATES = [
         },
     },
 ]
+
+# WebSocket을 위한 channel layer 설정
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',  # Redis 사용
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],  # 로컬 Redis 서버
+        },
+    },
+}
+
+ASGI_APPLICATION = 'yourproject.asgi.application'
 
 WSGI_APPLICATION = 'chat_project.wsgi.application'
 
