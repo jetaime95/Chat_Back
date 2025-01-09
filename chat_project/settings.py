@@ -5,10 +5,13 @@ import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-env = environ.Env()
-environ.Env.read_env()
+env = environ.Env(
+    DEBUG=(bool, False)
+)
 
-SECRET_KEY = env('SECRET_KEY')
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+
+SECRET_KEY = os.environ.get('SECRET_KEY','')
 
 DEBUG = True
 
@@ -123,9 +126,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ko-kr'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Seoul'
 
 USE_I18N = True
 
@@ -134,3 +137,17 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+AUTH_USER_MODEL = 'user.User'
+# email 설정
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# 메일을 보내는 호스트 서버
+EMAIL_HOST = 'smtp.gmail.com'
+# ENAIL_HOST에 정의된 SMTP 서버가 사용하는 포트 (587: TLS/STARTTLS용 포트)
+EMAIL_PORT = '587'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+# TLS 보안 방법 (SMPT 서버와 통신할 떄 TLS (secure) connection 을 사용할지 말지 여부)
+EMAIL_USE_TLS = True
+# 사이트와 관련한 자동응답을 받을 이메일 주소
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER

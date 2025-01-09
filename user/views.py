@@ -1,13 +1,36 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import status, permissions
+from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from user.models import User
-from user.serializers import UserSerializer, CustomObtainPairSerializer, UserProfileSerializers, UserProfileUpdateSerializers
+from user.serializers import UserSerializer, CustomObtainPairSerializer, UserProfileSerializers, UserProfileUpdateSerializers, EmailVerificationSerializer, VerifyCodeSerializer
+
+class EmailVerificationView(APIView):
+    permission_classes = [AllowAny]
+    def post(self, request):
+        serializer = EmailVerificationSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                "message": "인증번호가 발송되었습니다."
+            }, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class VerifyCodeView(APIView):
+    permission_classes = [AllowAny]
+    def post(self, request):
+        serializer = VerifyCodeSerializer(data=request.data)
+        if serializer.is_valid():
+            return Response({
+                "message": "이메일 인증이 완료되었습니다."
+            }, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 #회원가입
 class UserView(APIView):
+    permission_classes = [AllowAny]
     def post(self, request):
         if User.objects.filter(email = request.data["email"]):
             return Response({"message" : "이미 가입된 이메일 입니다.\n다시 시도해주세요."}, status=status.HTTP_400_BAD_REQUEST)
