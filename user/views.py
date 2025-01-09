@@ -4,20 +4,28 @@ from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
-from user.models import User
+from user.models import User, EmailVerification
 from user.serializers import UserSerializer, CustomObtainPairSerializer, UserProfileSerializers, UserProfileUpdateSerializers, EmailVerificationSerializer, VerifyCodeSerializer
 
+#이메일 인증
 class EmailVerificationView(APIView):
     permission_classes = [AllowAny]
     def post(self, request):
-        serializer = EmailVerificationSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
+        email_verification = User.objects.filter(email=request.data['email'])
+        if email_verification:
             return Response({
-                "message": "인증번호가 발송되었습니다."
-            }, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                "message": "이미 가입된 이메일입니다."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            serializer = EmailVerificationSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    "message": "인증번호가 발송되었습니다."
+                }, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+#인증번호 확인
 class VerifyCodeView(APIView):
     permission_classes = [AllowAny]
     def post(self, request):
