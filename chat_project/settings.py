@@ -47,7 +47,7 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=100),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'ROTATE_REFRESH_TOKENS': False,
-    'BLACKLIST_AFTER_ROTATION': False,
+    'BLACKLIST_AFTER_ROTATION': True,  # Refresh Token을 블랙리스트에 추가
     'UPDATE_LAST_LOGIN': False,
 
     'ALGORITHM': 'HS256',

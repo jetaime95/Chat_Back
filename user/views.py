@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
 from user.models import User, Friendship
 from user.serializers import (UserSerializer, CustomObtainPairSerializer, UserProfileSerializers, 
                               UserProfileUpdateSerializers, EmailVerificationSerializer, VerifyCodeSerializer,
@@ -60,6 +61,26 @@ class UserView(APIView):
 # 로그인 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomObtainPairSerializer
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]  # 인증된 사용자만 로그아웃 가능
+
+    def post(self, request, *args, **kwargs):
+        # Refresh Token을 통한 로그아웃 처리
+        try:
+            refresh_token = request.data.get("refresh")  # 클라이언트에서 전달된 refresh token
+            token = RefreshToken(refresh_token)
+            token.blacklist()  # Refresh 토큰을 블랙리스트에 추가하여 더 이상 사용 불가하게 함
+
+            # 로그아웃 성공 후 사용자 상태를 '오프라인'으로 변경
+            user = request.user
+            user.is_online = False
+            user.save()
+
+            return Response({"message": "로그아웃 완료"}, status=200)
+
+        except Exception as e:
+            return Response({"error": "유효하지 않은 토큰"}, status=400)
 
 #프로필 페이지
 class ProfileView(APIView):

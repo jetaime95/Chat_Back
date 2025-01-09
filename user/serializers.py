@@ -71,14 +71,10 @@ class CustomObtainPairSerializer(TokenObtainPairSerializer):  # JWT 토큰을 �
         token = super().get_token(user)  # 부모 클래스의 `get_token` 메서드를 호출하여 기본 토큰 생성
         token['username'] = user.username  # 생성된 토큰에 사용자 이메일을 추가
         token['is_admin'] = user.is_admin  # 사용자 객체의 `is_admin` 속성을 토큰에 포함. (관리자 여부를 판단하는 용도)
-        return token  # 수정된 토큰을 반환
-    
-class CustomObtainPairSerializer(TokenObtainPairSerializer):  # JWT 토큰을 생성하는 기본 Serializer를 상속받아 커스터마이징
-    @classmethod  # 클래스 메서드로 정의하여 클래스 자체에서 호출되도록 설정
-    def get_token(cls, user):  # 사용자로부터 JWT 토큰을 생성하는 메서드
-        token = super().get_token(user)  # 부모 클래스의 `get_token` 메서드를 호출하여 기본 토큰 생성
-        token['email'] = user.email  # 생성된 토큰에 사용자 이메일을 추가
-        token['is_admin'] = user.is_admin  # 사용자 객체의 `is_admin` 속성을 토큰에 포함. (관리자 여부를 판단하는 용도)
+
+        user.is_online = True
+        user.save()
+
         return token  # 수정된 토큰을 반환
 
 # 사용자 검색 및 친구 목록

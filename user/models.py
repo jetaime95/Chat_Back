@@ -62,6 +62,7 @@ class User(AbstractBaseUser):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_admin = models.BooleanField(default=False)
+    is_online = models.BooleanField(default=False)
 
     # 사용자 생성과 관련된 로직을 처리하는 UserManager를 설정
     objects = UserManager()
