@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from user.models import User, EmailVerification
+from user.models import User, EmailVerification, Friendship
 from user.utils import send_verification_email
 import random
 
@@ -80,7 +80,26 @@ class CustomObtainPairSerializer(TokenObtainPairSerializer):  # JWT 토큰을 �
         token['email'] = user.email  # 생성된 토큰에 사용자 이메일을 추가
         token['is_admin'] = user.is_admin  # 사용자 객체의 `is_admin` 속성을 토큰에 포함. (관리자 여부를 판단하는 용도)
         return token  # 수정된 토큰을 반환
-    
+
+# 사용자 검색 및 친구 목록
+class UserSearchSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username']  # 필요한 필드만 포함
+
+# 친구 요청
+class FriendshipSerializer(serializers.ModelSerializer):
+    from_user = serializers.StringRelatedField()  # 요청을 보낸 사용자
+    to_user = serializers.StringRelatedField()  # 요청을 받은 사용자
+
+    class Meta:
+        model = Friendship
+        fields = ['from_user', 'to_user', 'created_at', 'accepted']  # 필요한 필드 설정
+
+# 친구 요청 수락, 거절 및 친구 삭제
+class FriendRequestActionSerializer(serializers.Serializer):
+    username = serializers.CharField()  # 수락 또는 거절할 친구 요청의 사용자 이름
+
 # 프로필 
 class UserProfileSerializers(serializers.ModelSerializer):
     class Meta:

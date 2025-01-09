@@ -1,11 +1,14 @@
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status, permissions
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
-from user.models import User, EmailVerification
-from user.serializers import UserSerializer, CustomObtainPairSerializer, UserProfileSerializers, UserProfileUpdateSerializers, EmailVerificationSerializer, VerifyCodeSerializer
+from user.models import User, Friendship
+from user.serializers import (UserSerializer, CustomObtainPairSerializer, UserProfileSerializers, 
+                              UserProfileUpdateSerializers, EmailVerificationSerializer, VerifyCodeSerializer,
+                              UserSearchSerializer, FriendshipSerializer, FriendRequestActionSerializer)
 
 #이메일 인증
 class EmailVerificationView(APIView):
@@ -83,3 +86,118 @@ class ProfileView(APIView):
             return Response('성공')
         else:
             return Response("실패")
+        
+# 사용자 검색
+class SearchUserView(APIView):
+    permission_classes = [IsAuthenticated]  # 인증된 사용자만 접근 가능
+    def get(self, request):
+        username = request.query_params.get('username', None)  # 쿼리 파라미터에서 username을 가져옴
+        if username:
+            # username으로 사용자 검색 (대소문자 구분 없이)
+            users = User.objects.filter(username__icontains=username).exclude(id=request.user.id)  # 나를 제외하고 user 필터링
+            # 직렬화기를 사용하여 사용자 데이터 직렬화
+            serializer = UserSearchSerializer(users, many=True)
+            return Response({"users": serializer.data}, status=200)  # 사용자 목록 반환
+        return Response({"error": "사용자가 존재하지 않습니다."}, status=400)  # username이 없을 경우 오류 메시지
+        
+# 친구 요청 보내기
+class SendFriendRequestView(APIView):
+    permission_classes = [IsAuthenticated]  # 인증된 사용자만 접근 가능
+    def post(self, request):
+        serializer = FriendRequestActionSerializer(data=request.data)  # 직렬화기 사용
+        if serializer.is_valid():
+            username = serializer.validated_data['username']  # 추가할 친구의 사용자 이름
+            friend_user = get_object_or_404(User, username=username)  # 친구 사용자 조회
+            
+            # 이미 친구인지 확인
+            existing_friendship = Friendship.objects.filter(
+                (Q(from_user=request.user, to_user=friend_user) | Q(from_user=friend_user, to_user=request.user))
+            ).first()  # 친구 관계가 존재하는지 확인
+            
+            if existing_friendship:
+                return Response({"error": "이미 친구입니다."}, status=400)  # 이미 친구인 경우 오류 메시지
+            # 친구 추가 요청 생성
+            new_friendship = Friendship(from_user=request.user, to_user=friend_user)
+            new_friendship.save()  # 친구 요청 저장
+            
+            return Response({"message": "친구 요청이 전송되었습니다."}, status=201)  # 성공 메시지
+        return Response({"error": "유효하지 않은 요청입니다."}, status=400)  # 오류 메시지
+
+# 친구 요청 보낸 목록 조회
+class SentFriendRequestListView(APIView):
+    permission_classes = [IsAuthenticated]  # 인증된 사용자만 접근 가능
+    def get(self, request):
+        # 현재 사용자가 보낸 친구 요청 목록을 조회하되, accepted가 False인 요청만 필터링
+        sent_requests = Friendship.objects.filter(from_user=request.user, accepted=False)
+        # 직렬화기를 사용하여 요청 데이터 직렬화
+        serializer = FriendshipSerializer(sent_requests, many=True)
+        return Response({"sent_requests": serializer.data}, status=200)  # 보낸 친구 요청 목록 반환
+
+# 친구 요청 받은 목록 조회
+class ReceivedFriendRequestListView(APIView):
+    permission_classes = [IsAuthenticated]  # 인증된 사용자만 접근 가능
+    def get(self, request):
+        # 현재 사용자가 받은 친구 요청 목록을 조회
+        received_requests = Friendship.objects.filter(to_user=request.user, accepted=False)
+        # 직렬화기를 사용하여 요청 데이터 직렬화
+        serializer = FriendshipSerializer(received_requests, many=True)
+        return Response({"received_requests": serializer.data}, status=200)  # 받은 친구 요청 목록 반환
+
+# 친구 요청 수락
+class AcceptFriendRequestView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        serializer = FriendRequestActionSerializer(data=request.data)  # 직렬화기 사용
+        if serializer.is_valid():
+            from_user = get_object_or_404(User, username=serializer.validated_data['username'])  # 닉네임으로 사용자 조회
+            # 친구 요청을 찾고 수락
+            friendship = get_object_or_404(Friendship, from_user=from_user, to_user=request.user)
+            friendship.accepted = True  # 친구 요청 수락
+            friendship.save()  # 변경 사항 저장
+            return Response({"message": "친구 요청이 수락되었습니다."}, status=200)  # 성공 메시지
+        return Response({"error": "유효하지 않은 요청입니다."}, status=400)  # 오류 메시지
+
+# 친구 요청 거절
+class RejectFriendRequestView(APIView):
+    permission_classes = [IsAuthenticated]
+    def delete(self, request):
+        serializer = FriendRequestActionSerializer(data=request.data)  # 직렬화기 사용
+        if serializer.is_valid():
+            from_user = get_object_or_404(User, username=serializer.validated_data['username'])  # 닉네임으로 사용자 조회
+            # 친구 요청을 찾고 삭제
+            friendship = get_object_or_404(Friendship, from_user=from_user, to_user=request.user)
+            friendship.delete()  # 친구 요청 거절 (삭제)
+            return Response({"message": "친구 요청이 거절되었습니다."}, status=200)  # 성공 메시지
+        return Response({"error": "유효하지 않은 요청입니다."}, status=400)  # 오류 메시지
+
+# 친구 목록
+class FriendListView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):      # 현재 사용자의 친구 목록을 조회
+        friends = Friendship.objects.filter(
+        Q(from_user=request.user, accepted=True) | Q(to_user=request.user, accepted=True)
+        ).distinct()
+        # 친구 목록에서 친구 사용자 정보를 직렬화
+        friend_usernames = [friend.to_user if friend.from_user == request.user else friend.from_user for friend in friends]  # 친구 객체를 가져옴
+        serializer = UserSearchSerializer(friend_usernames, many=True)
+        return Response({"friends_requests": serializer.data}, status=200)  # 친구 목록을 JSON 형식으로 반환
+    
+# 친구 삭제
+class DeleteFriendView(APIView):
+    permission_classes = [IsAuthenticated]  # 인증된 사용자만 접근 가능
+
+    def delete(self, request):
+        serializer = FriendRequestActionSerializer(data=request.data)  # 직렬화기 사용
+        if serializer.is_valid():
+            username = serializer.validated_data['username']  # 삭제할 친구의 사용자 이름
+            friend_user = get_object_or_404(User, username=username)  # 친구 사용자 조회
+             # 친구 관계를 찾고 삭제 (from_user와 to_user 모두 확인)
+            friendship = Friendship.objects.filter(
+                (Q(from_user=request.user, to_user=friend_user) | Q(from_user=friend_user, to_user=request.user))
+            ).first()  # 첫 번째 매칭되는 친구 관계를 찾음
+            if friendship:
+                friendship.delete()  # 친구 관계 삭제
+                return Response({"message": "친구가 삭제되었습니다."}, status=200)  # 성공 메시지
+            else:
+                return Response({"error": "친구 관계가 존재하지 않습니다."}, status=404)  # 친구 관계가 없을 경우 오류 메시지
+        return Response({"error": "유효하지 않은 요청입니다."}, status=400)  # 오류 메시지

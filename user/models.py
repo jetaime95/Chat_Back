@@ -4,7 +4,6 @@ from django.core.validators import RegexValidator
 from django.utils import timezone
 from datetime import timedelta
 
-# Create your models here.
 # Django의 기본 User Manager를 확장하여 사용자 생성 로직을 커스터마이징하는 클래스.
 class UserManager(BaseUserManager):
     # 일반user 생성 메서드
@@ -85,3 +84,17 @@ class User(AbstractBaseUser):
     @property
     def is_staff(self):
         return self
+
+class Friendship(models.Model):
+    from_user = models.ForeignKey(User, related_name='friends_from', on_delete=models.CASCADE)
+    to_user = models.ForeignKey(User, related_name='friends_to', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    accepted = models.BooleanField(default=False)  # 친구 요청 수락 여부
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['from_user', 'to_user'], name='unique_friendship')
+        ]
+
+    def __str__(self):
+            return f"{self.from_user.username} -> {self.to_user.username} ({'Accepted' if self.accepted else 'Pending'})"
