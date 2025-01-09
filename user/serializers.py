@@ -1,34 +1,22 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from user.models import User, EmailVerification
-from django.core.mail import send_mail
+from user.utils import send_verification_email
 import random
 
 # 이메일 요청
 class EmailVerificationSerializer(serializers.Serializer):
-    # 이메일 필드 정의의
     email = serializers.EmailField()
-    # 이메일 인증 레코드 생성성
+
     def create(self, validated_data):
         email = validated_data['email']
-        # 기존 인증 레코드 삭제
         EmailVerification.objects.filter(email=email).delete()
-        # 6자리 인증번호 생성
         verification_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
-        # 새 인증 레코드 생성
         email_verification = EmailVerification.objects.create(
             email=email,
             verification_code=verification_code
         )
-        # 인증번호 이메일 발송
-        send_mail(
-            '이메일 인증 번호',
-            f'귀하의 인증번호는 {verification_code} 입니다. 10분 이내에 인증해주세요.',
-            'your_email@example.com',
-            [email],
-            fail_silently=False,
-        )
-        # 생성된 인증 레코드 반환
+        send_verification_email(email, verification_code)
         return email_verification
 
 # 인증번호 유효성 검사
