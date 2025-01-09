@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import(BaseUserManager, AbstractBaseUser)
 from django.core.validators import RegexValidator
+from django.utils import timezone
+from datetime import timedelta
 
 # Create your models here.
 # Django의 기본 User Manager를 확장하여 사용자 생성 로직을 커스터마이징하는 클래스.
@@ -30,7 +32,6 @@ class UserManager(BaseUserManager):
     def create_superuser(self, username, email, password=None):
         # create_user 메서드 실행하여 생성
         user = self.create_user(
-            username,
             email,
             password=password,
         )
@@ -38,6 +39,16 @@ class UserManager(BaseUserManager):
         user.is_admin = True
         user.save(using=self._db)
         return user
+    
+class EmailVerification(models.Model):
+    email = models.EmailField(unique=True)
+    verification_code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_verified = models.BooleanField(default=False)
+    
+    def is_expired(self):
+        # 인증번호 유효시간 설정
+        return self.created_at < timezone.now() - timedelta(minutes=10)
     
 class User(AbstractBaseUser):
     GENDERS = (
