@@ -4,7 +4,7 @@ from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.auth import AuthMiddlewareStack
 from user import routing as user_routing  # user 앱의 routing.py 임포트
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'yourproject.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'chat_project.settings')
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),  # HTTP 요청 처리

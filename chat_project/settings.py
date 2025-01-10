@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'user',
     'channels',
 ]
@@ -47,8 +48,9 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=100),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'BLACKLIST_TOKENS': True,  # 블랙리스트 기능 활성화
     'BLACKLIST_AFTER_ROTATION': True,  # Refresh Token을 블랙리스트에 추가
-    'ROTATE_REFRESH_TOKENS': False,
+    'ROTATE_REFRESH_TOKENS': True,
     'UPDATE_LAST_LOGIN': False,
 
     'ALGORITHM': 'HS256',
@@ -108,14 +110,14 @@ TEMPLATES = [
 # WebSocket을 위한 channel layer 설정
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',  # Redis 사용
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',  # Redis 사용
         'CONFIG': {
             "hosts": [('127.0.0.1', 6379)],  # 로컬 Redis 서버
         },
     },
 }
 
-ASGI_APPLICATION = 'yourproject.asgi.application'
+ASGI_APPLICATION = 'chat_project.asgi.application'
 
 WSGI_APPLICATION = 'chat_project.wsgi.application'
 

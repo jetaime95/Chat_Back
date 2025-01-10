@@ -81,7 +81,7 @@ class CustomObtainPairSerializer(TokenObtainPairSerializer):  # JWT 토큰을 �
 class UserSearchSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username']  # 필요한 필드만 포함
+        fields = ['id', 'username', 'updated_at','is_online']  # 필요한 필드만 포함
 
 # 친구 요청
 class FriendshipSerializer(serializers.ModelSerializer):

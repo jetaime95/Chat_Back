@@ -1,3 +1,4 @@
+import logging
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status, permissions
@@ -6,6 +7,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
+from channels.layers import get_channel_layer
 from user.models import User, Friendship
 from user.serializers import (UserSerializer, CustomObtainPairSerializer, UserProfileSerializers, 
                               UserProfileUpdateSerializers, EmailVerificationSerializer, VerifyCodeSerializer,
@@ -62,6 +64,7 @@ class UserView(APIView):
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomObtainPairSerializer
 
+# 로그아웃
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]  # 인증된 사용자만 로그아웃 가능
 
@@ -69,6 +72,7 @@ class LogoutView(APIView):
         # Refresh Token을 통한 로그아웃 처리
         try:
             refresh_token = request.data.get("refresh")  # 클라이언트에서 전달된 refresh token
+            print(refresh_token)
             token = RefreshToken(refresh_token)
             token.blacklist()  # Refresh 토큰을 블랙리스트에 추가하여 더 이상 사용 불가하게 함
 
@@ -77,9 +81,23 @@ class LogoutView(APIView):
             user.is_online = False
             user.save()
 
+             # 실시간으로 로그아웃 알림 보내기 (WebSocket 사용)
+            group_name = f'user_{user.id}'
+            message = f"{user.username} 로그아웃으로 인한 오프라인."
+            channel_layer = get_channel_layer()
+            channel_layer.group_send(
+                group_name,
+                {
+                    'type': 'chat_message',
+                    'message': message
+                }
+            )
             return Response({"message": "로그아웃 완료"}, status=200)
 
         except Exception as e:
+            # 오류가 발생했을 때 로그에 상세 정보 기록
+            logging.error(f"로그아웃 처리 중 오류 발생: {str(e)}")
+            print(f"로그아웃 처리 중 오류 발생: {str(e)}")  # 콘솔에 출력하여 디버깅
             return Response({"error": "유효하지 않은 토큰"}, status=400)
 
 #프로필 페이지
