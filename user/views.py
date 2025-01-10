@@ -1,15 +1,17 @@
 import logging
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django_redis import get_redis_connection
 from rest_framework import status, permissions
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from channels.layers import get_channel_layer
 from user.models import User, Friendship
-from user.serializers import (UserSerializer, CustomObtainPairSerializer, UserProfileSerializers, 
+from user.serializers import (UserSerializer, CustomObtainPairSerializer,  UserProfileSerializers, 
                               UserProfileUpdateSerializers, EmailVerificationSerializer, VerifyCodeSerializer,
                               UserSearchSerializer, FriendshipSerializer, FriendRequestActionSerializer)
 
@@ -63,6 +65,49 @@ class UserView(APIView):
 # 로그인 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        try:
+            response = super().post(request, *args, **kwargs)
+            
+            if response.status_code == 200:
+                email = request.data.get('email')
+                try:
+                    user = User.objects.get(email=email)
+                    
+                    # 1. 해당 사용자의 모든 OutstandingToken 찾기
+                    outstanding_tokens = OutstandingToken.objects.filter(user_id=user.id)
+                    
+                    # 2. 연결된 BlacklistedToken 삭제
+                    BlacklistedToken.objects.filter(token__in=outstanding_tokens).delete()
+                    
+                    # 3. OutstandingToken 삭제
+                    outstanding_tokens.delete()
+                    
+                    print(f"User {user.id}의 이전 토큰들이 성공적으로 삭제되었습니다.")
+                    
+                    # Redis 블랙리스트 토큰도 삭제
+                    try:
+                        redis = get_redis_connection("default")
+                        blacklist_key = f"blacklist_user_{user.id}_refresh_token"
+                        
+                        if redis.exists(blacklist_key):
+                            redis.delete(blacklist_key)
+                            print(f"Redis의 블랙리스트 토큰도 삭제되었습니다.")
+                    
+                    except Exception as e:
+                        print(f"Redis 작업 중 에러: {str(e)}")
+                
+                except User.DoesNotExist:
+                    print(f"User not found: {email}")
+                except Exception as e:
+                    print(f"토큰 삭제 중 에러: {str(e)}")
+            
+            return response
+
+        except Exception as e:
+            print(f"로그인 처리 중 에러 발생: {str(e)}")
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 # 로그아웃
 class LogoutView(APIView):

@@ -110,11 +110,21 @@ TEMPLATES = [
 # WebSocket을 위한 channel layer 설정
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',  # Redis 사용
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],  # 로컬 Redis 서버
+            "hosts": [('127.0.0.1', 6379)],
         },
     },
+}
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",  # Redis 서버의 위치
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    }
 }
 
 ASGI_APPLICATION = 'chat_project.asgi.application'
