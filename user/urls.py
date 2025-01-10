@@ -18,4 +18,5 @@ urlpatterns = [
     path('reject-friend-request/', views.RejectFriendRequestView.as_view(), name='reject_friend_request'),  # 친구 요청 거절 API
     path('friends/', views.FriendListView.as_view(), name='friend_list'),  # 친구 목록 API
     path('delete-friend/', views.DeleteFriendView.as_view(), name='delete-friend'),
+    path('logout/', views.LogoutView.as_view(), name='logout'),
 ]

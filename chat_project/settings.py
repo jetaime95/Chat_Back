@@ -27,7 +27,9 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'user',
+    'channels',
 ]
 
 SITE_ID = 1
@@ -46,8 +48,9 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=100),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': False,
-    'BLACKLIST_AFTER_ROTATION': False,
+    'BLACKLIST_TOKENS': True,  # 블랙리스트 기능 활성화
+    'BLACKLIST_AFTER_ROTATION': True,  # Refresh Token을 블랙리스트에 추가
+    'ROTATE_REFRESH_TOKENS': True,
     'UPDATE_LAST_LOGIN': False,
 
     'ALGORITHM': 'HS256',
@@ -103,6 +106,28 @@ TEMPLATES = [
         },
     },
 ]
+
+# WebSocket을 위한 channel layer 설정
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",  # Redis 서버의 위치
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    }
+}
+
+ASGI_APPLICATION = 'chat_project.asgi.application'
 
 WSGI_APPLICATION = 'chat_project.wsgi.application'
 

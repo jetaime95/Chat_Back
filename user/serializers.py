@@ -65,27 +65,23 @@ class UserSerializer(serializers.ModelSerializer):  # Django REST framework의 M
         user.save()  # 변경된 비밀번호를 포함하여 사용자 객체를 데이터베이스에 저장
         return user  # 새로 생성된 사용자 객체를 반환
     
-class CustomObtainPairSerializer(TokenObtainPairSerializer):  # JWT 토큰을 생성하는 기본 Serializer를 상속받아 커스터마이징
-    @classmethod  # 클래스 메서드로 정의하여 클래스 자체에서 호출되도록 설정
-    def get_token(cls, user):  # 사용자로부터 JWT 토큰을 생성하는 메서드
-        token = super().get_token(user)  # 부모 클래스의 `get_token` 메서드를 호출하여 기본 토큰 생성
-        token['username'] = user.username  # 생성된 토큰에 사용자 이메일을 추가
-        token['is_admin'] = user.is_admin  # 사용자 객체의 `is_admin` 속성을 토큰에 포함. (관리자 여부를 판단하는 용도)
-        return token  # 수정된 토큰을 반환
-    
-class CustomObtainPairSerializer(TokenObtainPairSerializer):  # JWT 토큰을 생성하는 기본 Serializer를 상속받아 커스터마이징
-    @classmethod  # 클래스 메서드로 정의하여 클래스 자체에서 호출되도록 설정
-    def get_token(cls, user):  # 사용자로부터 JWT 토큰을 생성하는 메서드
-        token = super().get_token(user)  # 부모 클래스의 `get_token` 메서드를 호출하여 기본 토큰 생성
-        token['email'] = user.email  # 생성된 토큰에 사용자 이메일을 추가
-        token['is_admin'] = user.is_admin  # 사용자 객체의 `is_admin` 속성을 토큰에 포함. (관리자 여부를 판단하는 용도)
-        return token  # 수정된 토큰을 반환
+class CustomObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token['username'] = user.username
+        token['is_admin'] = user.is_admin
+
+        user.is_online = True
+        user.save()
+
+        return token
 
 # 사용자 검색 및 친구 목록
 class UserSearchSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username']  # 필요한 필드만 포함
+        fields = ['id', 'username', 'updated_at', 'is_online']  # 필요한 필드만 포함
 
 # 친구 요청
 class FriendshipSerializer(serializers.ModelSerializer):
