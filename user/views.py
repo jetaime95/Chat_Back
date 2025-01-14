@@ -95,25 +95,6 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                     # 사용자 상태 변경
                     user.is_online = True
                     user.save()
-
-                    # WebSocket 메시지 전송
-                    try:
-                        group_name = f'user_{user.id}'
-                        channel_layer = get_channel_layer()
-                        async_to_sync(channel_layer.group_send)(
-                            group_name,
-                            {
-                                'type': 'status_message',
-                                'message': '로그인 되었습니다.',
-                                'is_online': user.is_online,
-                                'user_id': user.id,
-                                'username': user.username,
-                                'updated_at': user.updated_at.isoformat()
-                            }
-                        )
-                        logger.info(f"Login status message sent for user {user.id}")
-                    except Exception as e:
-                        logger.error(f"WebSocket message error in login: {str(e)}")
                 
                 except User.DoesNotExist:
                     print(f"User not found: {email}")
