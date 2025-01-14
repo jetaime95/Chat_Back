@@ -1,4 +1,5 @@
 import logging
+from asgiref.sync import async_to_sync
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django_redis import get_redis_connection
@@ -14,6 +15,8 @@ from user.models import User, Friendship
 from user.serializers import (UserSerializer, CustomObtainPairSerializer,  UserProfileSerializers, 
                               UserProfileUpdateSerializers, EmailVerificationSerializer, VerifyCodeSerializer,
                               UserSearchSerializer, FriendshipSerializer, FriendRequestActionSerializer)
+
+logger = logging.getLogger(__name__)
 
 #이메일 인증
 class EmailVerificationView(APIView):
@@ -75,28 +78,42 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 try:
                     user = User.objects.get(email=email)
                     
-                    # 1. 해당 사용자의 모든 OutstandingToken 찾기
+                    # 기존 토큰 정리 로직
                     outstanding_tokens = OutstandingToken.objects.filter(user_id=user.id)
-                    
-                    # 2. 연결된 BlacklistedToken 삭제
                     BlacklistedToken.objects.filter(token__in=outstanding_tokens).delete()
-                    
-                    # 3. OutstandingToken 삭제
                     outstanding_tokens.delete()
                     
-                    print(f"User {user.id}의 이전 토큰들이 성공적으로 삭제되었습니다.")
-                    
-                    # Redis 블랙리스트 토큰도 삭제
+                    # Redis 블랙리스트 토큰 삭제
                     try:
                         redis = get_redis_connection("default")
                         blacklist_key = f"blacklist_user_{user.id}_refresh_token"
-                        
                         if redis.exists(blacklist_key):
                             redis.delete(blacklist_key)
-                            print(f"Redis의 블랙리스트 토큰도 삭제되었습니다.")
-                    
                     except Exception as e:
                         print(f"Redis 작업 중 에러: {str(e)}")
+
+                    # 사용자 상태 변경
+                    user.is_online = True
+                    user.save()
+
+                    # WebSocket 메시지 전송
+                    try:
+                        group_name = f'user_{user.id}'
+                        channel_layer = get_channel_layer()
+                        async_to_sync(channel_layer.group_send)(
+                            group_name,
+                            {
+                                'type': 'status_message',
+                                'message': '로그인 되었습니다.',
+                                'is_online': user.is_online,
+                                'user_id': user.id,
+                                'username': user.username,
+                                'updated_at': user.updated_at.isoformat()
+                            }
+                        )
+                        logger.info(f"Login status message sent for user {user.id}")
+                    except Exception as e:
+                        logger.error(f"WebSocket message error in login: {str(e)}")
                 
                 except User.DoesNotExist:
                     print(f"User not found: {email}")
@@ -109,41 +126,49 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             print(f"로그인 처리 중 에러 발생: {str(e)}")
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-# 로그아웃
 class LogoutView(APIView):
-    permission_classes = [IsAuthenticated]  # 인증된 사용자만 로그아웃 가능
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        # Refresh Token을 통한 로그아웃 처리
         try:
-            refresh_token = request.data.get("refresh")  # 클라이언트에서 전달된 refresh token
-            print(refresh_token)
-            token = RefreshToken(refresh_token)
-            token.blacklist()  # Refresh 토큰을 블랙리스트에 추가하여 더 이상 사용 불가하게 함
+            refresh_token = request.data.get("refresh")
+            if not refresh_token:
+                return Response({"error": "Refresh token is required"}, status=400)
 
-            # 로그아웃 성공 후 사용자 상태를 '오프라인'으로 변경
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            except Exception as e:
+                logging.error(f"Token blacklist error: {str(e)}")
+                return Response({"error": "Invalid token"}, status=400)
+
             user = request.user
             user.is_online = False
             user.save()
 
-             # 실시간으로 로그아웃 알림 보내기 (WebSocket 사용)
-            group_name = f'user_{user.id}'
-            message = f"{user.username} 로그아웃으로 인한 오프라인."
-            channel_layer = get_channel_layer()
-            channel_layer.group_send(
-                group_name,
-                {
-                    'type': 'chat_message',
-                    'message': message
-                }
-            )
+            try:
+                group_name = f'user_{user.id}'
+                channel_layer = get_channel_layer()
+                async_to_sync(channel_layer.group_send)(
+                    group_name,
+                    {
+                        'type': 'status_message',
+                        'message': '로그아웃 되었습니다.',
+                        'is_online': user.is_online,
+                        'user_id': user.id,
+                        'username': user.username,
+                        'updated_at': user.updated_at.isoformat()
+                    }
+                )
+                logger.info(f"Logout status message sent for user {user.id}")
+            except Exception as e:
+                logger.error(f"WebSocket message error in logout: {str(e)}")
+
             return Response({"message": "로그아웃 완료"}, status=200)
 
         except Exception as e:
-            # 오류가 발생했을 때 로그에 상세 정보 기록
-            logging.error(f"로그아웃 처리 중 오류 발생: {str(e)}")
-            print(f"로그아웃 처리 중 오류 발생: {str(e)}")  # 콘솔에 출력하여 디버깅
-            return Response({"error": "유효하지 않은 토큰"}, status=400)
+            logging.error(f"Logout process error: {str(e)}")
+            return Response({"error": str(e)}, status=400)
 
 #프로필 페이지
 class ProfileView(APIView):
