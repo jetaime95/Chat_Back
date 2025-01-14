@@ -105,9 +105,10 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                             {
                                 'type': 'status_message',
                                 'message': '로그인 되었습니다.',
-                                'status': 'online',
+                                'is_online': user.is_online,
                                 'user_id': user.id,
-                                'username': user.username
+                                'username': user.username,
+                                'updated_at': user.updated_at.isoformat()
                             }
                         )
                         logger.info(f"Login status message sent for user {user.id}")
@@ -153,9 +154,10 @@ class LogoutView(APIView):
                     {
                         'type': 'status_message',
                         'message': '로그아웃 되었습니다.',
-                        'status': 'offline',
+                        'is_online': user.is_online,
                         'user_id': user.id,
-                        'username': user.username
+                        'username': user.username,
+                        'updated_at': user.updated_at.isoformat()
                     }
                 )
                 logger.info(f"Logout status message sent for user {user.id}")

@@ -84,30 +84,59 @@ class UserStatusConsumer(AsyncWebsocketConsumer):
         try:
             data = json.loads(text_data)
             message = data.get('message', '')
-            status = data.get('status', '')
+            is_online = data.get('is_online', '')
             
-            logger.info(f"Received message for user {self.user.id}: {message}, status: {status}")
+            logger.info(f"Received message for user {self.user.id}: {message}, is_online: {is_online}")
 
-            # 자신과 친구들의 그룹에 상태 변경 메시지 전송
-            friend_groups = await self.get_friend_groups()
-            groups_to_notify = [self.group_name] + friend_groups
+            # 첫 번째 메시지 수신 시에만 로그인 메시지를 보내고,
+            # 그 이후에는 상태 메시지만 전송하도록 함
+            if not self.is_logged_in:
+                # 로그인 메시지 전송
+                await self.send_login_message(message, is_online)
+                self.is_logged_in = True  # 로그인 상태로 설정
+            else:
+                # 상태 변경 메시지 전송
+                await self.send_status_update_message(message, is_online)
             
-            for group in groups_to_notify:
-                await self.channel_layer.group_send(
-                    group,
-                    {
-                        'type': 'status_message',
-                        'message': message,
-                        'status': status,
-                        'user_id': self.user.id,
-                        'username': self.user.username
-                    }
-                )
         except Exception as e:
             logger.error(f"Error in receive: {str(e)}")
             await self.send(text_data=json.dumps({
                 'error': str(e)
             }))
+
+    async def send_login_message(self, message, is_online):
+        """로그인 메시지를 한 번만 전송"""
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                'type': 'status_message',
+                'message': message if message else '로그인 되었습니다.',
+                'is_online': is_online,
+                'user_id': self.user.id,
+                'username': self.user.username,
+                'updated_at': self.user.updated_at.isoformat()  # updated_at 추가
+            }
+        )
+        logger.info(f"Login message sent for user {self.user.id}")
+
+    async def send_status_update_message(self, message, is_online):
+        """상태 변경 메시지를 전송"""
+        friend_groups = await self.get_friend_groups()
+        groups_to_notify = [self.group_name] + friend_groups
+        
+        for group in groups_to_notify:
+            await self.channel_layer.group_send(
+                group,
+                {
+                    'type': 'status_message',
+                    'message': message,
+                    'is_online': is_online,
+                    'user_id': self.user.id,
+                    'username': self.user.username,
+                    'updated_at': self.user.updated_at.isoformat()  # updated_at 추가
+                }
+            )
+            logger.info(f"Status update message sent for user {self.user.id}")
 
     async def status_message(self, event):
         try:
@@ -115,9 +144,10 @@ class UserStatusConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({
                 'type': 'status_update',
                 'message': event['message'],
-                'status': event['status'],
+                'is_online': event['is_online'],
                 'user_id': event['user_id'],
-                'username': event['username']
+                'username': event['username'],
+                'updated_at': event['updated_at']  # updated_at 추가
             }))
         except Exception as e:
             logger.error(f"Error in status_message: {str(e)}")
