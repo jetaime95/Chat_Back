@@ -6,6 +6,7 @@ class ChatRoom(models.Model):
         ('direct', 'Direct Message'),
         ('group', 'Group Chat')
     )
+    room_type = models.CharField(max_length=10, choices=ROOM_TYPES, default='direct')
     participants = models.ManyToManyField(User, related_name='chat_rooms')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
