@@ -8,6 +8,10 @@ from user.models import Friendship, User
 logger = logging.getLogger(__name__)
 
 class UserStatusConsumer(AsyncWebsocketConsumer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.is_logged_in = False  # 기본값으로 False 설정
+
     async def connect(self):
         # 실제 User 객체를 가져옴
         self.user = await self.get_user()
@@ -84,19 +88,15 @@ class UserStatusConsumer(AsyncWebsocketConsumer):
         try:
             data = json.loads(text_data)
             message = data.get('message', '')
-            is_online = data.get('is_online', '')
             
-            logger.info(f"Received message for user {self.user.id}: {message}, is_online: {is_online}")
+            logger.info(f"Received message for user {self.user.id}: {message}")
 
             # 첫 번째 메시지 수신 시에만 로그인 메시지를 보내고,
             # 그 이후에는 상태 메시지만 전송하도록 함
             if not self.is_logged_in:
                 # 로그인 메시지 전송
-                await self.send_login_message(message, is_online)
+                await self.send_login_message(message)
                 self.is_logged_in = True  # 로그인 상태로 설정
-            else:
-                # 상태 변경 메시지 전송
-                await self.send_status_update_message(message, is_online)
             
         except Exception as e:
             logger.error(f"Error in receive: {str(e)}")
@@ -104,39 +104,20 @@ class UserStatusConsumer(AsyncWebsocketConsumer):
                 'error': str(e)
             }))
 
-    async def send_login_message(self, message, is_online):
+    async def send_login_message(self, message):
         """로그인 메시지를 한 번만 전송"""
         await self.channel_layer.group_send(
             self.group_name,
             {
                 'type': 'status_message',
                 'message': message if message else '로그인 되었습니다.',
-                'is_online': is_online,
+                'is_online': True,
                 'user_id': self.user.id,
                 'username': self.user.username,
                 'updated_at': self.user.updated_at.isoformat()  # updated_at 추가
             }
         )
         logger.info(f"Login message sent for user {self.user.id}")
-
-    async def send_status_update_message(self, message, is_online):
-        """상태 변경 메시지를 전송"""
-        friend_groups = await self.get_friend_groups()
-        groups_to_notify = [self.group_name] + friend_groups
-        
-        for group in groups_to_notify:
-            await self.channel_layer.group_send(
-                group,
-                {
-                    'type': 'status_message',
-                    'message': message,
-                    'is_online': is_online,
-                    'user_id': self.user.id,
-                    'username': self.user.username,
-                    'updated_at': self.user.updated_at.isoformat()  # updated_at 추가
-                }
-            )
-            logger.info(f"Status update message sent for user {self.user.id}")
 
     async def status_message(self, event):
         try:
