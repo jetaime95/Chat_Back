@@ -19,7 +19,7 @@ class ChatRoomSerializer(serializers.ModelSerializer):
         fields = ['id', 'other_participant', 'last_message', 'unread_count', 'updated_at']
     
     def get_last_message(self, obj):
-        last_message = obj.messages.first()
+        last_message = obj.messages.last()
         if last_message:
             return ChatMessageSerializer(last_message).data
         return None

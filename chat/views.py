@@ -51,6 +51,11 @@ class DirectChatMessageView(APIView):
         # 해당 채팅방이 1대1 채팅방이고 사용자가 참여자인지 확인
         chat_room = get_object_or_404(ChatRoom, id=room_id, room_type='direct', participants=request.user)
         
+        # 상대방 정보 가져오기
+        other_participant = chat_room.participants.exclude(id=request.user.id).first()
+        if not other_participant:
+            return Response({"error": "상대방 정보를 가져올 수 없습니다."}, status=400)
+        
         # 메시지 읽음 처리
         unread_messages = chat_room.messages.filter(is_read=False).exclude(sender=request.user)
         unread_messages.update(is_read=True)
@@ -58,4 +63,16 @@ class DirectChatMessageView(APIView):
         # 최근 100개의 메시지만 조회
         messages = chat_room.messages.all()[:100]
         serializer = ChatMessageSerializer(messages, many=True)
-        return Response(serializer.data)
+        
+        # 상대방 정보 추가
+        response_data = {
+            "messages": serializer.data,
+            "other_participant": {
+                "id": other_participant.id,
+                "username": other_participant.username,
+                "is_online": other_participant.is_online,
+                "created_at": other_participant.created_at
+            }
+        }
+        
+        return Response(response_data)
