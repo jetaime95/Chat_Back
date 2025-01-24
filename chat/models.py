@@ -15,8 +15,14 @@ class ChatRoom(models.Model):
         ordering = ['-updated_at']
 
     def __str__(self):
-        participants = self.participants.exclude(id=self.request.user.id)
-        return ', '.join([participant.username for participant in participants])
+        # 현재 로그인한 사용자를 제외한 참가자 이름들을 반환
+        if self.room_type == 'direct':
+            # 1:1 채팅방의 경우 상대방 이름 반환
+            other_participant = self.participants.first()
+            return other_participant.username
+        else:
+            # 그룹 채팅의 경우 모든 참가자 이름 반환
+            return ', '.join([participant.username for participant in self.participants.all()])
 
 
 class ChatMessage(models.Model):

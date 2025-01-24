@@ -1,10 +1,11 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+from channels.layers import get_channel_layer
 from django.core.exceptions import ValidationError
 from django.utils.html import escape
 from .models import ChatRoom, ChatMessage
-from .serializers import ChatMessageSerializer
+from .serializers import ChatMessageSerializer, ChatRoomSerializer
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -85,6 +86,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     'message': message_data
                 }
             )
+            
+            # 사이드바 업데이트
+            other_participant = await self.get_other_participant(message.room, self.scope["user"].id)
+            await send_sidebar_update(self.scope["user"], other_participant)
         except Exception as e:
             await self.send_error(f"메시지 저장 중 오류가 발생했습니다: {str(e)}")
 
@@ -143,3 +148,100 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def serialize_message(self, message):
         """메시지 시리얼라이즈"""
         return ChatMessageSerializer(message).data
+    
+    @database_sync_to_async
+    def get_other_participant(self, room, user_id):
+        return room.participants.exclude(id=user_id).first()
+    
+class SidebarChatConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        # 사용자 인증 확인
+        if not self.scope["user"].is_authenticated:
+            await self.close()
+            return
+        
+        self.user_channel_name = f"sidebar_chat_{self.scope['user'].id}"
+        
+        # 채널 레이어에 참여
+        await self.channel_layer.group_add(
+            self.user_channel_name,
+            self.channel_name
+        )
+        
+        await self.accept()
+    
+        # 초기 채팅방 목록 전송
+        await self.send_chat_room_list()
+
+    async def disconnect(self, close_code):
+        # 채널 레이어에서 제거
+        if hasattr(self, 'user_channel_name'):
+            await self.channel_layer.group_discard(
+                self.user_channel_name,
+                self.channel_name
+            )
+
+    async def receive(self, text_data):
+        # 클라이언트로부터 받은 메시지 처리 (필요한 경우)
+        pass
+
+    async def send_chat_room_list(self):
+        """현재 사용자의 채팅방 목록 직렬화 및 전송"""
+        chat_rooms = await self.get_chat_rooms()
+        await self.send(text_data=json.dumps({
+            'type': 'chat_room_list',
+            'rooms': chat_rooms
+        }))
+
+    async def chat_message(self, event):
+        """새 메시지 수신 시 사이드바 업데이트"""
+        await self.send_chat_room_list()
+
+    async def update_chat_rooms(self, event):
+        """채팅방 업데이트 이벤트 처리"""
+        await self.send_chat_room_list()
+
+    @database_sync_to_async
+    def get_chat_rooms(self):
+        """사용자의 다이렉트 메시지 채팅방 목록 가져오기"""
+        chat_rooms = ChatRoom.objects.filter(
+            participants=self.scope["user"], 
+            room_type='direct'
+        ).prefetch_related('participants', 'messages')
+        
+        # 시리얼라이저 컨텍스트 생성 (request 대신 수동으로 user 전달)
+        class MockRequest:
+            def __init__(self, user):
+                self.user = user
+        
+        mock_request = MockRequest(self.scope["user"])
+        serializer = ChatRoomSerializer(
+            chat_rooms, 
+            many=True, 
+            context={'request': mock_request}
+        )
+        
+        return serializer.data
+
+# 채팅 업데이트 헬퍼 함수 (전역 함수로 이동)
+async def send_sidebar_update(sender, recipient):
+    """
+    메시지 전송 시 양쪽 사용자의 사이드바 업데이트
+    """
+    channel_layer = get_channel_layer()
+
+    # 발신자 사이드바 업데이트
+    await channel_layer.group_send(
+        f"sidebar_chat_{sender.id}",
+        {
+            'type': 'chat_message'
+        }
+    )
+    
+    # 수신자 사이드바 업데이트
+    await channel_layer.group_send(
+        f"sidebar_chat_{recipient.id}",
+        {
+            'type': 'chat_message'
+        }
+    )
