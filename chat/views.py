@@ -3,9 +3,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from asgiref.sync import async_to_sync
 from user.models import User
 from .models import ChatRoom
 from .serializers import ChatRoomSerializer, ChatMessageSerializer
+from chat.consumers import send_sidebar_update
 
 class DirectChatRoomListView(APIView):
     """1대1 채팅방 목록을 조회하는 뷰"""
@@ -35,13 +37,20 @@ class CreateDirectChatRoomView(APIView):
         if existing_room:
             serializer = ChatRoomSerializer(existing_room, context={'request': request})
             return Response(serializer.data)
-        
-        # 새로운 1대1 채팅방 생성
-        chat_room = ChatRoom.objects.create(room_type='direct')
-        chat_room.participants.add(request.user, other_user)
-        
-        serializer = ChatRoomSerializer(chat_room, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        try:
+            # 새로운 채팅방 생성
+            chat_room = ChatRoom.objects.create(room_type="direct")
+            chat_room.participants.add(request.user, other_user)
+
+            # WebSocket 사이드바 업데이트
+            async_to_sync(send_sidebar_update)(request.user, other_user)
+
+            serializer = ChatRoomSerializer(chat_room, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except:
+            return Response({"error": "채팅방 생성 중 오류가 발생했습니다."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class DirectChatMessageView(APIView):
     """1대1 채팅방의 메시지를 조회하고 전송하는 뷰"""
