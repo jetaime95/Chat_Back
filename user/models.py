@@ -54,6 +54,7 @@ class User(AbstractBaseUser):
         ('남성', 'male'),('여성', 'female'),
     )
     phoneNumberRegex = RegexValidator(regex = r'^01([0|1|6|7|8|9]?)-?([0-9]{3,4})-?([0-9]{4})$')
+    image = models.ImageField(upload_to='profile/', default='default/profile.jpg', max_length=255, null=True)
     email = models.EmailField(max_length=255,unique=True, verbose_name='이메일')
     username = models.CharField(max_length=50, unique=True, verbose_name='이름')
     gender = models.CharField(verbose_name='성별', max_length=6, choices=GENDERS)

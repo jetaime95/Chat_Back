@@ -104,6 +104,8 @@ class UserProfileSerializers(serializers.ModelSerializer):
         
 # 프로필 수정
 class UserProfileUpdateSerializers(serializers.ModelSerializer):
+    image = serializers.ImageField(required=False)
+
     class Meta:
         model = User
-        fields = ('username', 'phone', 'birth')
+        fields = ('username', 'phone', 'birth', 'image')
