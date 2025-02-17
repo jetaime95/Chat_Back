@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404
 from django_redis import get_redis_connection
 from rest_framework import status, permissions
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -154,13 +155,15 @@ class LogoutView(APIView):
 #프로필 페이지
 class ProfileView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    parser_classes = (MultiPartParser, FormParser)
+
     def get(self, request):
         user = User.objects.get(id=request.user.id)
         serializer_user = UserProfileSerializers(user)
         return Response(serializer_user.data, status=status.HTTP_200_OK)
     
 #프로필 수정  
-    def put(self, request):
+    def put(self, request, *args, **kwargs):
         user = get_object_or_404(User, id=request.user.id)
         serializer = UserProfileUpdateSerializers(user, data=request.data, partial=True)
         if serializer.is_valid():
@@ -168,6 +171,7 @@ class ProfileView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 #회원탈퇴
     def delete(self, request):
         user = get_object_or_404(User, id=request.user.id)
