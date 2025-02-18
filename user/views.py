@@ -3,6 +3,7 @@ from asgiref.sync import async_to_sync
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django_redis import get_redis_connection
+from django.contrib.auth.hashers import check_password
 from rest_framework import status, permissions
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -155,7 +156,6 @@ class LogoutView(APIView):
 #프로필 페이지
 class ProfileView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    parser_classes = (MultiPartParser, FormParser)
 
     def get(self, request):
         user = User.objects.get(id=request.user.id)
@@ -173,13 +173,16 @@ class ProfileView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 #회원탈퇴
-    def delete(self, request):
+    def post(self, request):
         user = get_object_or_404(User, id=request.user.id)
-        if user.email == request.data['email']:
+        input_password = request.data.get('password')
+        
+        # check_password 함수를 이용해 평문 비밀번호와 해시된 비밀번호 비교
+        if check_password(input_password, user.password):
             user.delete()
-            return Response('성공')
+            return Response({"message": "성공"}, status=status.HTTP_200_OK)
         else:
-            return Response("실패")
+            return Response({"message": "실패"}, status=status.HTTP_400_BAD_REQUEST)
         
 # 사용자 검색
 class SearchUserView(APIView):
