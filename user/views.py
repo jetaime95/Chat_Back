@@ -4,6 +4,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django_redis import get_redis_connection
 from django.contrib.auth.hashers import check_password
+from django.core.exceptions import ValidationError
 from rest_framework import status, permissions
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -16,7 +17,7 @@ from channels.layers import get_channel_layer
 from user.models import User, Friendship
 from user.serializers import (UserSerializer, CustomObtainPairSerializer,  UserProfileSerializers, 
                               UserProfileUpdateSerializers, EmailVerificationSerializer, VerifyCodeSerializer,
-                              UserSearchSerializer, FriendshipSerializer, FriendRequestActionSerializer)
+                              UserSearchSerializer, FriendshipSerializer, FriendRequestActionSerializer, PasswordChangeSerializer)
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +184,46 @@ class ProfileView(APIView):
             return Response({"message": "성공"}, status=status.HTTP_200_OK)
         else:
             return Response({"message": "실패"}, status=status.HTTP_400_BAD_REQUEST)
+        
+#비밀번호 변경
+class PasswordChangeView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        serializer = PasswordChangeSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            user = request.user
+            current_password = serializer.validated_data['current_password']
+            new_password = serializer.validated_data['new_password']
+            
+            # 현재 비밀번호 확인
+            if not user.check_password(current_password):
+                return Response(
+                    {"error": "현재 비밀번호가 일치하지 않습니다."}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            try:
+                # 새 비밀번호 설정
+                user.set_password(new_password)
+                user.save()
+                
+                return Response(
+                    {"message": "비밀번호가 성공적으로 변경되었습니다."}, 
+                    status=status.HTTP_200_OK
+                )
+            
+            except ValidationError as e:
+                return Response(
+                    {"error": str(e)}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+        return Response(
+            serializer.errors, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
         
 # 사용자 검색
 class SearchUserView(APIView):
