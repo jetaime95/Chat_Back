@@ -23,7 +23,7 @@ class UserStatusConsumer(AsyncWebsocketConsumer):
         
         logger.info(f"WebSocket connecting for user {self.user.id} in group {self.group_name}")
         
-        # 자신의 그룹에 연결
+        # 자신의 그룹에
         await self.channel_layer.group_add(
             self.group_name,
             self.channel_name
@@ -60,6 +60,15 @@ class UserStatusConsumer(AsyncWebsocketConsumer):
             friend = friendship.to_user if friendship.from_user_id == self.user.id else friendship.from_user
             friend_groups.append(f'user_{friend.id}')
         return friend_groups
+
+    @database_sync_to_async
+    def get_profile_image_url(self):
+        # User 모델에서 프로필 이미지 URL을 가져옴
+        # models.py에서는 필드명이 'image'로 되어 있으므로 수정
+        if hasattr(self.user, 'image') and self.user.image:
+            return self.user.image.url
+        # 기본 이미지 URL 반환 또는 None 반환
+        return '/media/default/profile.jpg'  # 기본 이미지 경로 추가
 
     async def disconnect(self, close_code):
         if not hasattr(self, 'user') or not self.user:
@@ -98,6 +107,10 @@ class UserStatusConsumer(AsyncWebsocketConsumer):
                 await self.send_login_message(message)
                 self.is_logged_in = True  # 로그인 상태로 설정
             
+            # 프로필 이미지 업데이트 이벤트 처리
+            if 'profile_image_updated' in data and data['profile_image_updated']:
+                await self.send_profile_image_update()
+            
         except Exception as e:
             logger.error(f"Error in receive: {str(e)}")
             await self.send(text_data=json.dumps({
@@ -106,6 +119,8 @@ class UserStatusConsumer(AsyncWebsocketConsumer):
 
     async def send_login_message(self, message):
         """로그인 메시지를 한 번만 전송"""
+        profile_image_url = await self.get_profile_image_url()
+        
         await self.channel_layer.group_send(
             self.group_name,
             {
@@ -114,7 +129,8 @@ class UserStatusConsumer(AsyncWebsocketConsumer):
                 'is_online': True,
                 'user_id': self.user.id,
                 'username': self.user.username,
-                'updated_at': self.user.updated_at.isoformat()  # updated_at 추가
+                'profile_image_url': profile_image_url,  # 프로필 이미지 URL 추가
+                'updated_at': self.user.updated_at.isoformat()
             }
         )
         logger.info(f"Login message sent for user {self.user.id}")
@@ -128,7 +144,8 @@ class UserStatusConsumer(AsyncWebsocketConsumer):
                 'is_online': event['is_online'],
                 'user_id': event['user_id'],
                 'username': event['username'],
-                'updated_at': event['updated_at']  # updated_at 추가
+                'profile_image_url': event.get('profile_image_url'),  # 프로필 이미지 URL 추가
+                'updated_at': event['updated_at']
             }))
         except Exception as e:
             logger.error(f"Error in status_message: {str(e)}")
