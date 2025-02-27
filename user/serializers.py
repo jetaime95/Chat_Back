@@ -1,7 +1,9 @@
+from django.core.exceptions import ValidationError
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from user.models import User, EmailVerification, Friendship
 from user.utils import send_verification_email
+import re
 import random
 
 # 이메일 요청
@@ -45,9 +47,17 @@ class VerifyCodeSerializer(serializers.Serializer):
 
 # 회원가입
 class UserSerializer(serializers.ModelSerializer):  # Django REST framework의 ModelSerializer를 상속받아 사용자 정보를 직렬화하는 클래스
+    password = serializers.CharField(write_only=True)
+    
     class Meta:  # Meta 클래스는 직렬화할 대상 모델과 필드 정보를 정의
         model = User  # Django의 내장 User 모델을 사용
         fields = '__all__'
+
+    def validate_password(self, value):
+        try:
+            return PasswordValidator.validate_password(value)
+        except ValidationError as e:
+            raise serializers.ValidationError(str(e))
 
     def create(self, validated_data):  # 새 사용자를 생성하는 메서드로, 사용자 비밀번호를 안전하게 저장하도록 처리
         email = validated_data.get('email')
@@ -77,11 +87,45 @@ class CustomObtainPairSerializer(TokenObtainPairSerializer):
 
         return token
 
+class PasswordValidator:
+    @staticmethod
+    def validate_password(password):
+        if len(password) < 8:
+            raise ValidationError("비밀번호는 최소 8자 이상이어야 합니다.")
+        
+        if not re.search(r'[A-Za-z]', password):
+            raise ValidationError("비밀번호는 영문을 포함해야 합니다.")
+            
+        if not re.search(r'\d', password):
+            raise ValidationError("비밀번호는 숫자를 포함해야 합니다.")
+            
+        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+            raise ValidationError("비밀번호는 특수문자를 포함해야 합니다.")
+            
+        return password
+
+class PasswordChangeSerializer(serializers.Serializer):
+    current_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True)
+    
+    def validate_new_password(self, value):
+        try:
+            return PasswordValidator.validate_password(value)
+        except ValidationError as e:
+            raise serializers.ValidationError(str(e))
+
+    def validate(self, data):
+        # 현재 비밀번호와 새 비밀번호가 같은지 확인
+        if data['current_password'] == data['new_password']:
+            raise serializers.ValidationError("새 비밀번호는 현재 비밀번호와 달라야 합니다.")
+        
+        return data
+
 # 사용자 검색 및 친구 목록
 class UserSearchSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'updated_at', 'is_online']  # 필요한 필드만 포함
+        fields = ['id', 'username', 'updated_at', 'is_online', 'image']  # 필요한 필드만 포함
 
 # 친구 요청
 class FriendshipSerializer(serializers.ModelSerializer):

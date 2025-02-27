@@ -10,6 +10,7 @@ urlpatterns = [
     path('verify-code/', views.VerifyCodeView.as_view(), name='verify-code'),
     path('signup/', views.UserView.as_view(), name='user_view'),
     path('profile/', views.ProfileView.as_view(), name='profile_view'),
+    path('password-change/', views.PasswordChangeView.as_view(), name='password-change'),
     path('search-users/', views.SearchUserView.as_view(), name='search_users'),  # 사용자 검색 API
     path('send_friend_request/', views.SendFriendRequestView.as_view(), name='send_friend_request'), # 친구 요청 API
     path('sent-friend-requests/', views.SentFriendRequestListView.as_view(), name='sent_friend_request_list'),  # 보낸 친구 요청 목록 API

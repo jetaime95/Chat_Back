@@ -1,8 +1,10 @@
 from django.db import models
 from django.contrib.auth.models import(BaseUserManager, AbstractBaseUser)
 from django.core.validators import RegexValidator
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from datetime import timedelta
+import re
 
 # Django의 기본 User Manager를 확장하여 사용자 생성 로직을 커스터마이징하는 클래스.
 class UserManager(BaseUserManager):
@@ -86,6 +88,20 @@ class User(AbstractBaseUser):
     @property
     def is_staff(self):
         return self
+    
+    def clean_password(self):
+        password = self.password
+        if len(password) < 8:
+            raise ValidationError("비밀번호는 최소 8자 이상이어야 합니다.")
+        
+        if not re.search(r'[A-Za-z]', password):
+            raise ValidationError("비밀번호는 영문을 포함해야 합니다.")
+            
+        if not re.search(r'\d', password):
+            raise ValidationError("비밀번호는 숫자를 포함해야 합니다.")
+            
+        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+            raise ValidationError("비밀번호는 특수문자를 포함해야 합니다.")
 
 class Friendship(models.Model):
     from_user = models.ForeignKey(User, related_name='friends_from', on_delete=models.CASCADE)

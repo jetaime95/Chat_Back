@@ -80,7 +80,8 @@ class DirectChatMessageView(APIView):
                 "id": other_participant.id,
                 "username": other_participant.username,
                 "is_online": other_participant.is_online,
-                "created_at": other_participant.created_at
+                "created_at": other_participant.created_at,
+                "image": str(other_participant.image)
             }
         }
         
