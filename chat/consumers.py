@@ -37,8 +37,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 self.channel_name
             )
 
+            # 참여자 상태 업데이트를 받기 위한 그룹에 참여
+            self.status_subscriptions = []
+            await self.subscribe_to_participants_status()
+            
             # 연결 수락
             await self.accept()
+            
+            # 초기 참여자 정보 전송
+            await self.send_participants_info()
             
         except Exception as e:
             await self.close()
@@ -51,6 +58,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 self.room_group_name,
                 self.channel_name
             )
+            
+        # 참여자 상태 그룹에서도 제거
+        if hasattr(self, 'status_subscriptions'):
+            for group_name in self.status_subscriptions:
+                await self.channel_layer.group_discard(
+                    group_name,
+                    self.channel_name
+                )
 
     async def receive(self, text_data):
         try:
@@ -59,6 +74,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             
             if message_type == 'message':
                 await self.handle_chat_message(data)
+            elif message_type == 'profile_image_updated':
+                await self.handle_profile_image_update()
                     
         except json.JSONDecodeError:
             await self.send_error("잘못된 메시지 형식입니다.")
@@ -107,6 +124,40 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'type': 'error',
             'message': message
         }))
+        
+    async def status_message(self, event):
+        """사용자 상태 업데이트 처리"""
+        # 참여자 정보 갱신하여 전송
+        await self.send_participants_info()
+        
+    async def profile_image_update(self, event):
+        """프로필 이미지 업데이트 처리"""
+        # 참여자 정보 갱신하여 전송
+        await self.send_participants_info()
+    
+    async def handle_profile_image_update(self):
+        """프로필 이미지 업데이트 처리 및 알림"""
+        # 채팅 참여자들에게 업데이트 알림
+        chat_participants = await self.get_room_participants()
+        
+        for participant_id in chat_participants:
+            if participant_id != self.scope["user"].id:
+                await self.channel_layer.group_send(
+                    f"chat_room_{self.room_id}",
+                    {
+                        'type': 'profile_image_update',
+                        'user_id': self.scope["user"].id,
+                    }
+                )
+                
+                # 사이드바도 업데이트
+                await self.channel_layer.group_send(
+                    f"sidebar_chat_{participant_id}",
+                    {
+                        'type': 'profile_image_update',
+                        'user_id': self.scope["user"].id,
+                    }
+                )
 
     @database_sync_to_async
     def initialize_room(self):
@@ -153,6 +204,55 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def get_other_participant(self, room, user_id):
         return room.participants.exclude(id=user_id).first()
+    
+    @database_sync_to_async
+    def get_room_participants(self):
+        """채팅방의 모든 참여자 ID 목록 가져오기"""
+        return list(self.room.participants.values_list('id', flat=True))
+        
+    async def subscribe_to_participants_status(self):
+        """채팅방 참여자들의 상태 업데이트를 구독"""
+        participant_ids = await self.get_room_participants()
+        
+        for participant_id in participant_ids:
+            if participant_id != self.scope["user"].id:  # 자신 제외
+                group_name = f"user_{participant_id}"
+                self.status_subscriptions.append(group_name)
+                await self.channel_layer.group_add(
+                    group_name,
+                    self.channel_name
+                )
+    
+    async def send_participants_info(self):
+        """채팅방 참여자 정보 전송 (온라인 상태 및 프로필 이미지 포함)"""
+        participants_info = await self.get_participants_info()
+        await self.send(text_data=json.dumps({
+            'type': 'participants_info',
+            'participants': participants_info
+        }))
+    
+    @database_sync_to_async
+    def get_participants_info(self):
+        """채팅방 참여자 정보 가져오기 (온라인 상태 및 프로필 이미지 포함)"""
+        participants = self.room.participants.all()
+        participants_info = []
+        
+        for participant in participants:
+            participant_info = {
+                'id': participant.id,
+                'username': participant.username,
+                'is_online': hasattr(participant, 'is_online') and participant.is_online,
+            }
+            
+            # 프로필 이미지 추가
+            if hasattr(participant, 'image') and participant.image:
+                participant_info['profile_image_url'] = participant.image.url
+            else:
+                participant_info['profile_image_url'] = '/media/default/profile.jpg'
+                
+            participants_info.append(participant_info)
+            
+        return participants_info
     
 class SidebarChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
