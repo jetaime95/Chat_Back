@@ -1,4 +1,5 @@
 import logging
+import os
 from asgiref.sync import async_to_sync
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
@@ -166,6 +167,13 @@ class ProfileView(APIView):
 #프로필 수정  
     def put(self, request, *args, **kwargs):
         user = get_object_or_404(User, id=request.user.id)
+
+        # 기존 이미지 삭제 로직
+        if user.image:  # 이미지가 있을 경우
+            image_path = user.image.path  # 실제 파일 경로 가져오기
+            if os.path.exists(image_path):  # 파일이 존재하면 삭제
+                os.remove(image_path)
+
         serializer = UserProfileUpdateSerializers(user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
