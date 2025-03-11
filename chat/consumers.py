@@ -5,6 +5,7 @@ from channels.layers import get_channel_layer
 from django.core.exceptions import ValidationError
 from django.utils.html import escape
 from .models import ChatRoom, ChatMessage
+from user.models import User
 from .serializers import ChatMessageSerializer, ChatRoomSerializer
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -168,9 +169,12 @@ class SidebarChatConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
         
+        # 모든 채팅방 참여자들의 상태 그룹에도 구독
+        await self.subscribe_to_participants_status()
+        
         await self.accept()
     
-        # 초기 채팅방 목록 전송
+        # 초기 채팅방 목록 전송 (온라인 상태 포함)
         await self.send_chat_room_list()
 
     async def disconnect(self, close_code):
@@ -180,14 +184,31 @@ class SidebarChatConsumer(AsyncWebsocketConsumer):
                 self.user_channel_name,
                 self.channel_name
             )
+            
+        # 모든 채팅방 참여자들의 상태 그룹에서도 제거
+        if hasattr(self, 'status_subscriptions'):
+            for group_name in self.status_subscriptions:
+                await self.channel_layer.group_discard(
+                    group_name,
+                    self.channel_name
+                )
 
     async def receive(self, text_data):
-        # 클라이언트로부터 받은 메시지 처리 (필요한 경우)
-        pass
+        try:
+            data = json.loads(text_data)
+            
+            # 프로필 이미지 업데이트 처리
+            if data.get('profile_image_updated'):
+                await self.handle_profile_image_update()
+                
+        except json.JSONDecodeError:
+            pass
+        except Exception as e:
+            pass
 
     async def send_chat_room_list(self):
         """현재 사용자의 채팅방 목록 직렬화 및 전송"""
-        chat_rooms = await self.get_chat_rooms()
+        chat_rooms = await self.get_chat_rooms_with_status()
         await self.send(text_data=json.dumps({
             'type': 'chat_room_list',
             'rooms': chat_rooms
@@ -200,16 +221,66 @@ class SidebarChatConsumer(AsyncWebsocketConsumer):
     async def update_chat_rooms(self, event):
         """채팅방 업데이트 이벤트 처리"""
         await self.send_chat_room_list()
+        
+    async def status_message(self, event):
+        """사용자 상태 업데이트 처리"""
+        # 상태 메시지를 받으면 채팅방 목록을 다시 불러와 업데이트된 상태 정보를 포함
+        await self.send_chat_room_list()
+        
+    async def profile_image_update(self, event):
+        """프로필 이미지 업데이트 처리"""
+        # 프로필 이미지가 업데이트되면 채팅방 목록을 다시 불러옴
+        await self.send_chat_room_list()
+
+    async def handle_profile_image_update(self):
+        """프로필 이미지 업데이트 처리 및 알림"""
+        # 채팅 참여자들에게 업데이트 알림
+        chat_participants = await self.get_all_chat_participants()
+        
+        for participant_id in chat_participants:
+            await self.channel_layer.group_send(
+                f"sidebar_chat_{participant_id}",
+                {
+                    'type': 'profile_image_update',
+                    'user_id': self.scope["user"].id,
+                }
+            )
+    
+    @database_sync_to_async
+    def get_all_chat_participants(self):
+        """사용자가 참여하는 모든 채팅방의 다른 참여자들의 ID 목록 가져오기"""
+        chat_rooms = ChatRoom.objects.filter(participants=self.scope["user"])
+        participant_ids = set()
+        
+        for room in chat_rooms:
+            for participant in room.participants.all():
+                if participant.id != self.scope["user"].id:
+                    participant_ids.add(participant.id)
+                    
+        return list(participant_ids)
+
+    async def subscribe_to_participants_status(self):
+        """모든 채팅 참여자의 상태 업데이트를 구독"""
+        participant_ids = await self.get_all_chat_participants()
+        self.status_subscriptions = []
+        
+        for participant_id in participant_ids:
+            group_name = f"user_{participant_id}"
+            self.status_subscriptions.append(group_name)
+            await self.channel_layer.group_add(
+                group_name,
+                self.channel_name
+            )
 
     @database_sync_to_async
-    def get_chat_rooms(self):
-        """사용자의 다이렉트 메시지 채팅방 목록 가져오기"""
+    def get_chat_rooms_with_status(self):
+        """사용자의 다이렉트 메시지 채팅방 목록과 참여자 상태 정보 가져오기"""
         chat_rooms = ChatRoom.objects.filter(
             participants=self.scope["user"], 
             room_type='direct'
         ).prefetch_related('participants', 'messages')
         
-        # 시리얼라이저 컨텍스트 생성 (request 대신 수동으로 user 전달)
+        # 시리얼라이저 컨텍스트 생성
         class MockRequest:
             def __init__(self, user):
                 self.user = user
@@ -221,7 +292,28 @@ class SidebarChatConsumer(AsyncWebsocketConsumer):
             context={'request': mock_request}
         )
         
-        return serializer.data
+        # 시리얼라이즈된 데이터에 온라인 상태와 프로필 이미지 정보 추가
+        serialized_data = serializer.data
+        
+        for room_data in serialized_data:
+            # 다른 참여자 정보 가져오기
+            for participant in room_data.get('participants', []):
+                if participant['id'] != self.scope["user"].id:
+                    # User 모델에서 현재 상태 및 프로필 이미지 가져오기
+                    try:
+                        user = User.objects.get(id=participant['id'])
+                        participant['is_online'] = hasattr(user, 'is_online') and user.is_online
+                        
+                        # 프로필 이미지 추가
+                        if hasattr(user, 'image') and user.image:
+                            participant['profile_image_url'] = user.image.url
+                        else:
+                            participant['profile_image_url'] = '/media/default/profile.jpg'
+                    except User.DoesNotExist:
+                        participant['is_online'] = False
+                        participant['profile_image_url'] = '/media/default/profile.jpg'
+        
+        return serialized_data
 
 # 채팅 업데이트 헬퍼 함수 (전역 함수로 이동)
 async def send_sidebar_update(sender, recipient):
