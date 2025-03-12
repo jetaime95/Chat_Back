@@ -15,10 +15,11 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from channels.layers import get_channel_layer
-from user.models import User, Friendship
+from user.models import User, Friendship, EmailVerification
 from user.serializers import (UserSerializer, CustomObtainPairSerializer,  UserProfileSerializers, 
                               UserProfileUpdateSerializers, EmailVerificationSerializer, VerifyCodeSerializer,
-                              UserSearchSerializer, FriendshipSerializer, FriendRequestActionSerializer, PasswordChangeSerializer)
+                              UserSearchSerializer, FriendshipSerializer, FriendRequestActionSerializer, PasswordChangeSerializer, 
+                              PasswordResetConfirmSerializer)
 
 logger = logging.getLogger(__name__)
 
@@ -55,19 +56,76 @@ class VerifyCodeView(APIView):
 class UserView(APIView):
     permission_classes = [AllowAny]
     def post(self, request):
-        if User.objects.filter(email = request.data["email"]):
+        email = request.data.get('email')
+        if User.objects.filter(email=email):
             return Response({"message" : "이미 가입된 이메일 입니다.\n다시 시도해주세요."}, status=status.HTTP_400_BAD_REQUEST)
         
-        elif User.objects.filter(username = request.data["username"]):
+        elif User.objects.filter(username=request.data["username"]):
             return Response({"message" : "중복된 닉네임이 있습니다.\n다시 시도해주세요."}, status=status.HTTP_400_BAD_REQUEST)
         
         else:
             serializer = UserSerializer(data=request.data)
             if serializer.is_valid():
                 serializer.save()
+                EmailVerification.objects.filter(email=email).delete()
                 return Response({"message" : "회원가입을 축하합니다!"}, status=status.HTTP_201_CREATED)
             else:
                 return Response({"message" : f"${serializer.errors}"}, status=status.HTTP_400_BAD_REQUEST)
+
+# 비밀번호 찾기를 위한 이메일 인증 요청
+class PasswordResetEmailView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+
+        # 이메일 존재 여부만 확인
+        if not User.objects.filter(email=email).exists():
+            return Response({"message": "해당 이메일로 가입된 계정이 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = EmailVerificationSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "비밀번호 재설정을 위한 인증번호가 발송되었습니다."}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# 비밀번호 찾기 인증번호 확인
+class PasswordResetVerifyCodeView(APIView):
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        # 기존 VerifyCodeSerializer 활용
+        serializer = VerifyCodeSerializer(data=request.data)
+        if serializer.is_valid():
+            return Response({"message": "인증이 완료되었습니다. 새 비밀번호를 설정해주세요."}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# 비밀번호 재설정
+class PasswordResetView(APIView):
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            new_password = serializer.validated_data['new_password']
+            
+            try:
+                user = User.objects.get(email=email)
+                # 새 비밀번호 설정
+                user.set_password(new_password)
+                user.save()
+                
+                # 인증 정보 삭제
+                EmailVerification.objects.filter(email=email).delete()
+                
+                return Response({"message": "비밀번호가 성공적으로 재설정되었습니다."}, status=status.HTTP_200_OK)
+                
+            except User.DoesNotExist:
+                return Response({"message": "사용자를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # 로그인 
 class CustomTokenObtainPairView(TokenObtainPairView):

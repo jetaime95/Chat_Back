@@ -176,7 +176,7 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 # 메일을 보내는 호스트 서버
 EMAIL_HOST = 'smtp.gmail.com'
 # ENAIL_HOST에 정의된 SMTP 서버가 사용하는 포트 (587: TLS/STARTTLS용 포트)
-EMAIL_PORT = '587'
+EMAIL_PORT = 587
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 # TLS 보안 방법 (SMPT 서버와 통신할 떄 TLS (secure) connection 을 사용할지 말지 여부)
