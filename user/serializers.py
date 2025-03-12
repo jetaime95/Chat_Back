@@ -103,7 +103,28 @@ class PasswordValidator:
             raise ValidationError("비밀번호는 특수문자를 포함해야 합니다.")
             
         return password
+    
+# 새 비밀번호 재설정 시리얼라이저
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    new_password = serializers.CharField(write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
+    
+    def validate_new_password(self, value):
+        return PasswordValidator.validate_password(value)
+    
+    def validate(self, data):
+        # 새 비밀번호와 확인 비밀번호 일치 확인
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError("새 비밀번호가 일치하지 않습니다.")
+        
+        # 이메일 인증 확인
+        if not EmailVerification.objects.filter(email=data['email'], is_verified=True).exists():
+            raise serializers.ValidationError("이메일 인증을 먼저 완료해주세요.")
+        
+        return data
 
+# 비밀번호 변경
 class PasswordChangeSerializer(serializers.Serializer):
     current_password = serializers.CharField(required=True)
     new_password = serializers.CharField(required=True)
