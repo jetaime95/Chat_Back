@@ -13,9 +13,9 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 SECRET_KEY = os.environ.get('SECRET_KEY','')
 
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['54.180.30.11']
 
 INSTALLED_APPS = [
     'daphne',
@@ -135,8 +135,12 @@ WSGI_APPLICATION = 'chat_project.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('DATABASE_NAME', ''),
+        'USER': os.environ.get('DATABASE_USER', ''),
+        'PASSWORD': os.environ.get('DATABASE_PWD', ''),
+        'HOST': os.environ.get('DATABASE_HOST', ''),
+        'PORT': os.environ.get('DATABASE_PORT', ''),
     }
 }
 
@@ -163,7 +167,8 @@ USE_I18N = True
 
 USE_TZ = True
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
@@ -184,6 +189,6 @@ EMAIL_USE_TLS = True
 # 사이트와 관련한 자동응답을 받을 이메일 주소
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
-CORS_ORIGIN_WHITELIST = ('http://127.0.0.1:5500','http://localhost:5500', 'http://127.0.0.1:5501','http://localhost:5501',)
+CORS_ORIGIN_WHITELIST = ('http://54.180.30.11:8000',)
 CSRF_TRUSTED_ORIGINS = CORS_ORIGIN_WHITELIST
 CORS_ALLOW_CREDENTIALS = True
