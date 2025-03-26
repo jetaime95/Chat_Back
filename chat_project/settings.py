@@ -5,9 +5,7 @@ import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-env = environ.Env(
-    DEBUG=(bool, False)
-)
+env = environ.Env()
 
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
@@ -15,7 +13,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY','')
 
 DEBUG = False
 
-ALLOWED_HOSTS = ['54.180.30.11']
+ALLOWED_HOSTS = ['13.209.15.78', 'localhost', '127.0.0.1']
 
 INSTALLED_APPS = [
     'daphne',
@@ -89,6 +87,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'middlewares.jwt_middleware.JWTAuthMiddleware',
 ]
 
 ROOT_URLCONF = 'chat_project.urls'
@@ -144,6 +143,29 @@ DATABASES = {
     }
 }
 
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'django.db.backends': {
+            'level': 'DEBUG',  # 데이터베이스 쿼리 로그를 보기 위한 설정
+            'handlers': ['console'],
+            'propagate': False,
+        },
+    },
+}
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -168,7 +190,7 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
@@ -189,6 +211,12 @@ EMAIL_USE_TLS = True
 # 사이트와 관련한 자동응답을 받을 이메일 주소
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
-CORS_ORIGIN_WHITELIST = ('http://54.180.30.11:8000',)
+CORS_ORIGIN_WHITELIST = [
+    'http://13.209.15.78',
+    'http://localhost:8080',
+    'http://13.209.15.78:8080',
+    'http://13.209.15.78:8000',
+    'http://localhost:80',
+]
 CSRF_TRUSTED_ORIGINS = CORS_ORIGIN_WHITELIST
 CORS_ALLOW_CREDENTIALS = True

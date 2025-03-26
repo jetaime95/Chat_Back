@@ -2,6 +2,7 @@ from urllib.parse import parse_qs
 from rest_framework_simplejwt.tokens import AccessToken
 from django.contrib.auth.models import AnonymousUser
 from asgiref.sync import sync_to_async
+from django.core.exceptions import AppRegistryNotReady
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
