@@ -229,7 +229,8 @@ class ProfileView(APIView):
         # 기존 이미지 삭제 로직
         if user.image:  # 이미지가 있을 경우
             image_path = user.image.path  # 실제 파일 경로 가져오기
-            if os.path.exists(image_path):  # 파일이 존재하면 삭제
+            # 기본 프로필 이미지인지 확인 (default 폴더에 있으면 삭제 안 함)
+            if "media/default/" not in image_path.replace("\\", "/") and os.path.exists(image_path):  
                 os.remove(image_path)
 
         serializer = UserProfileUpdateSerializers(user, data=request.data, partial=True)

@@ -41,7 +41,12 @@ class JWTWebSocketMiddleware(BaseMiddleware):
         if auth_header.startswith('Bearer '):
             token = auth_header.split(' ')[1]
         elif 'token' in query_params:
-            token = query_params['token'][0]
+            token_value = query_params['token'][0]
+            # Bearer 접두사가 있으면 제거
+            if token_value.startswith('Bearer '):
+                token = token_value.split(' ')[1]
+            else:
+                token = token_value
         
         # 토큰 인증
         user = await self.authenticate_websocket(token)
