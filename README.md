@@ -31,6 +31,7 @@ WebSocket 기반 채팅 웹서비스
 4. 프로필
     - 프로필 수정
     - 비밀번호 변경
+    - 회원탈퇴
     
 ## 사용 기술
 - **Backend**: Django, Django Rest Framework
