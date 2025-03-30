@@ -13,7 +13,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY','')
 
 DEBUG = False
 
-ALLOWED_HOSTS = ['13.209.15.78', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['*', 'backend', '13.209.15.78']
 
 INSTALLED_APPS = [
     'daphne',
@@ -87,7 +87,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'middlewares.jwt_middleware.JWTAuthMiddleware',
+    'middlewares.jwt_middleware.UniversalJWTAuthMiddleware',
 ]
 
 ROOT_URLCONF = 'chat_project.urls'
@@ -113,7 +113,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
+            "hosts": [('redis', 6379)],
         },
     },
 }
@@ -193,7 +193,11 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+PROFILE_IMAGE_DIR = 'profile/'
+DEFAULT_PROFILE_IMAGE_PATH = 'default/profile.jpg'
+
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -212,11 +216,21 @@ EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 CORS_ORIGIN_WHITELIST = [
-    'http://13.209.15.78',
+    'https://13.209.15.78',
     'http://localhost:8080',
-    'http://13.209.15.78:8080',
-    'http://13.209.15.78:8000',
+    'https://13.209.15.78:8080',
+    'https://13.209.15.78:8000',
     'http://localhost:80',
 ]
 CSRF_TRUSTED_ORIGINS = CORS_ORIGIN_WHITELIST
 CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "POST",
+    "PUT",
+]
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = True

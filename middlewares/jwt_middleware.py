@@ -1,54 +1,68 @@
-from urllib.parse import parse_qs
+from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import AccessToken
 from django.contrib.auth.models import AnonymousUser
-from django.contrib.auth import get_user_model
-from channels.middleware import BaseMiddleware
 from channels.db import database_sync_to_async
+from urllib.parse import parse_qs
+from django.utils.deprecation import MiddlewareMixin
+from channels.middleware import BaseMiddleware
 
 User = get_user_model()
 
-class JWTAuthMiddleware(BaseMiddleware):
+class UniversalJWTAuthMiddleware(MiddlewareMixin):
+    def process_request(self, request):
+        # HTTP 요청 처리 로직
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+            try:
+                validated_token = AccessToken(token)
+                user_id = validated_token['user_id']
+                user = User.objects.get(id=user_id)
+                request.user = user
+                print(f"JWT Middleware (HTTP): User authenticated - {user}")
+            except Exception as e:
+                print(f"JWT Authentication Error (HTTP): {e}")
+                request.user = AnonymousUser()
+        else:
+            request.user = AnonymousUser()
+        return None
+
+class JWTWebSocketMiddleware(BaseMiddleware):
     async def __call__(self, scope, receive, send):
-        # URL에서 query_string을 받아옴
-        query_string = scope.get("query_string", b"").decode("utf-8")
+        # 토큰 추출
+        headers = dict(scope.get('headers', []))
+        auth_header = headers.get(b'authorization', b'').decode()
+        
+        query_string = scope.get('query_string', b'').decode()
         query_params = parse_qs(query_string)
         
-        # token 파라미터 추출
-        token = query_params.get("token", [None])[0]
-
-        # JWT Token이 Bearer 형식일 경우, 'Bearer ' 부분을 제거하고 실제 토큰만 사용
-        if token and token.startswith("Bearer "):
-            token = token[7:]
-
-        print(f"JWT 미들웨어: 수신된 토큰 - {token}")
-
-        if token:
-            try:
-                # AccessToken 검증
-                validated_token = AccessToken(token)
-                user_id = validated_token["user_id"]
-
-                # 데이터베이스에서 사용자 조회 (비동기로 처리)
-                user = await self.get_user(user_id)
-                scope["user"] = user
-
-                print(f"JWT 미들웨어: 사용자 설정 - {scope['user']}")
-            except Exception as e:
-                print(f"JWT 오류: {e}")
-                scope["user"] = AnonymousUser()
-        else:
-            scope["user"] = AnonymousUser()
-
-        # 다음 미들웨어 또는 라우터로 요청 전달
+        # 토큰 선택 (헤더 우선, 그 다음 쿼리 파라미터)
+        token = None
+        if auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+        elif 'token' in query_params:
+            token = query_params['token'][0]
+        
+        # 토큰 인증
+        user = await self.authenticate_websocket(token)
+        
+        # 스코프에 사용자 설정
+        scope['user'] = user
+        
         return await super().__call__(scope, receive, send)
-    
+
     @database_sync_to_async
-    def get_user(self, user_id):
-        return User.objects.get(id=user_id)
-
-class JWTAuthMiddlewareStack:
-    def __init__(self, inner):
-        self.inner = inner
-
-    def __call__(self, scope):
-        return JWTAuthMiddleware(self.inner)
+    def authenticate_websocket(self, token):
+        # WebSocket 인증 로직
+        if not token:
+            return AnonymousUser()
+        
+        try:
+            validated_token = AccessToken(token)
+            user_id = validated_token['user_id']
+            user = User.objects.get(id=user_id)
+            print(f"JWT Middleware (WebSocket): User authenticated - {user}")
+            return user
+        except Exception as e:
+            print(f"JWT Authentication Error (WebSocket): {e}")
+            return AnonymousUser()

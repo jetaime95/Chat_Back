@@ -21,10 +21,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY ./Chat_Back /app
 
 # PYTHONPATH 설정
-ENV PYTHONPATH="/app:${PYTHONPATH}"
+ENV PYTHONPATH="/app/Chat_Back:/app:${PYTHONPATH}"
 
 # Django 서버 포트 설정
 EXPOSE 8000
 
 # 실행 명령 수정
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "chat_project.asgi:application"]
+CMD ["sh", "-c", "python manage.py migrate && python -m chat_project.asgi"]
