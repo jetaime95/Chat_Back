@@ -4,6 +4,9 @@ WebSocket 기반 채팅 웹서비스
 ## 프로젝트 소개
 실시간으로 메시지를 주고받을 수 있는 채팅 웹서비스입니다. WebSocket을 사용하여 클라이언트와 서버 간의 지속적인 연결을 유지하며, 실시간으로 채팅을 할 수 있습니다.
 
+## 아키텍쳐
+![image](https://github.com/user-attachments/assets/1c5c8974-de56-4dbf-8501-58981a3eaaa4)
+
 ## front-end github-address
 [Chat_Frontend](https://github.com/jetaime95/Chat_Front)
 
@@ -40,3 +43,4 @@ WebSocket 기반 채팅 웹서비스
 - **Database**: SQLite (개발용), PostgreSQL (운영용)
 
 ## 웹페이지 주소
+https://13.209.15.78
